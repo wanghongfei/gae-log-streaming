@@ -20,7 +20,7 @@ import java.util.Map;
 import java.util.Properties;
 
 public class ChargingTask {
-    private KafkaSender kafkaSender;
+    // private KafkaSender kafkaSender;
 
     /**
      * 从kafka创建两条数据流，分别接收检索日志和曝光日志，并对他们实时join，生成扣费信息再次投到kafka中
@@ -28,7 +28,6 @@ public class ChargingTask {
      * @throws Exception
      */
     public void run(String appname) throws Exception {
-        initProducer();
 
         SparkConf conf = new SparkConf().setAppName(appname);
         JavaStreamingContext ctx = new JavaStreamingContext(conf, Durations.seconds(10));
@@ -88,6 +87,7 @@ public class ChargingTask {
 
         // 两日志JOIN拼接
         JavaPairDStream<String, Tuple2<SearchLog, ExposeLog>> joinedPairStream = searchPairStream.join(exposePairStream);
+        joinedPairStream.print();
 
         // 遍历拼接结果
         // 发kafka消息
@@ -102,7 +102,12 @@ public class ChargingTask {
                     chargeLog.setExposeTs(exposeLog.getTs());
                     chargeLog.setSearchLog(searchLog);
 
-                    kafkaSender.send(chargeLog.toString());
+                    try {
+                        KafkaSender.getInstance().send(chargeLog.toString());
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+
                 }
             });
         });
@@ -141,12 +146,5 @@ public class ChargingTask {
 
         return KafkaUtils.createStream(ctx, props.getProperty("zk-list"), props.getProperty("group"), topicMap)
                 .map( tuple -> tuple._2 );
-    }
-
-    private void initProducer() throws IOException {
-        Properties props = new Properties();
-        props.load(Thread.currentThread().getContextClassLoader().getResourceAsStream("kafka-charge.properties"));
-
-        this.kafkaSender = new KafkaSender(props);
     }
 }
