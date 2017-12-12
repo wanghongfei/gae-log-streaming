@@ -5,6 +5,7 @@ import kafka.producer.Producer;
 import kafka.producer.ProducerConfig;
 import scala.collection.JavaConverters;
 
+import java.io.IOException;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.List;
@@ -22,15 +23,22 @@ public class KafkaSender implements Serializable {
 
     private KafkaSender() {
         Properties props = new Properties();
-        props.put("serializer.class", SERIALIZER);
-        props.put("metadata.broker.list", BROKER_LIST);
+        try {
+            props.load(Thread.currentThread().getContextClassLoader().getResourceAsStream("kafka-charge.properties"));
+        } catch (IOException e) {
+            e.printStackTrace();
+            throw new IllegalStateException(e.getMessage());
+        }
+
+        // props.put("serializer.class", SERIALIZER);
+        // props.put("metadata.broker.list", BROKER_LIST);
 
         ProducerConfig config = new ProducerConfig(props);
 
         producer = new Producer<String, String>(config);
     }
 
-    public static KafkaSender getInstance() {
+    public static synchronized KafkaSender getInstance() {
         if (null == kafkaSender) {
             kafkaSender = new KafkaSender();
         }

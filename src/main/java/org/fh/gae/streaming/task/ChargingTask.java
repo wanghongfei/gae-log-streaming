@@ -20,8 +20,6 @@ import java.util.Map;
 import java.util.Properties;
 
 public class ChargingTask {
-    // private KafkaSender kafkaSender;
-
     /**
      * 从kafka创建两条数据流，分别接收检索日志和曝光日志，并对他们实时join，生成扣费信息再次投到kafka中
      * @param appname
