@@ -13,19 +13,22 @@ import java.util.stream.Collectors;
 public class KafkaSender {
     private Producer<String, String> producer;
 
+    private String topic;
+
     public KafkaSender(Properties props) {
         ProducerConfig config = new ProducerConfig(props);
-        this.producer = new Producer<String, String>(config);
+        this.topic = props.getProperty("topic");
 
+        this.producer = new Producer<String, String>(config);
     }
 
-    public void send(String topic, String message) {
+    public void send(String message) {
         KeyedMessage<String, String> msg = new KeyedMessage<>(topic, message);
 
         producer.send(JavaConverters.asScalaIterableConverter(Arrays.asList(msg)).asScala().toSeq());
     }
 
-    public void send(String topic, List<String> msgList) {
+    public void send(List<String> msgList) {
         List<KeyedMessage<String, String>> keyedMessages = msgList.stream()
                 .map( msg -> new KeyedMessage<String, String>(topic, msg) )
                 .collect(Collectors.toList());

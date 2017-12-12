@@ -3,15 +3,14 @@ package org.fh.gae.streaming.task;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.function.Function;
-import org.apache.spark.api.java.function.VoidFunction;
 import org.apache.spark.streaming.Durations;
 import org.apache.spark.streaming.api.java.JavaDStream;
 import org.apache.spark.streaming.api.java.JavaPairDStream;
 import org.apache.spark.streaming.api.java.JavaStreamingContext;
 import org.apache.spark.streaming.kafka.KafkaUtils;
 import org.fh.gae.streaming.task.kafka.KafkaSender;
+import org.fh.gae.streaming.task.log.ChargeLog;
 import org.fh.gae.streaming.task.log.ExposeLog;
-import org.fh.gae.streaming.task.log.JoinedLog;
 import org.fh.gae.streaming.task.log.SearchLog;
 import scala.Tuple2;
 
@@ -36,11 +35,11 @@ public class ChargingTask {
 
 
         // 检索日志流
-        // JavaDStream<String> searchStream = createSearchStream(ctx);
-        JavaDStream<String> searchStream = createKafkaSearchStream(ctx);
+        JavaDStream<String> searchStream = createSearchStream(ctx);
+        // JavaDStream<String> searchStream = createKafkaSearchStream(ctx);
         // 曝光日志流
-        // JavaDStream<String> exposeStream = createExposeStream(ctx);
-        JavaDStream<String> exposeStream = createKafkaExposeStream(ctx);
+        JavaDStream<String> exposeStream = createExposeStream(ctx);
+        // JavaDStream<String> exposeStream = createKafkaExposeStream(ctx);
 
         ctx.remember(Durations.seconds(20));
         final JavaPairRDD<String, ExposeLog>[] lastRdd = new JavaPairRDD[1];
@@ -60,6 +59,7 @@ public class ChargingTask {
                 })
                 // 去重
                 .reduceByKey((log1, log2) -> log1)
+                // 过虑掉上个批次出现过的曝光记录
                 .transformToPair((Function<JavaPairRDD<String, ExposeLog>, JavaPairRDD<String, ExposeLog>>) pairRdd -> {
                     if (null == lastRdd[0]) {
                         lastRdd[0] = pairRdd;
@@ -71,10 +71,6 @@ public class ChargingTask {
 
                     return pairRdd;
                 });
-        exposePairStream.print();
-        exposePairStream.foreachRDD((VoidFunction<JavaPairRDD<String, ExposeLog>>) rdd -> kafkaSender.send("duomo_ott_dev", "message"));
-
-
 
         // 检索日志pair
         JavaPairDStream<String, SearchLog> searchPairStream = searchStream
@@ -85,23 +81,31 @@ public class ChargingTask {
                 // 转换成pair
                 .mapToPair((terms) -> {
                     String sid = terms[1];
-                    SearchLog searchLog = new SearchLog(sid, Long.parseLong(terms[19]), Long.parseLong(terms[2]));
+                    SearchLog searchLog = SearchLog.ofString(terms);
+
                     return new Tuple2<>(sid, searchLog);
                 });
-        searchPairStream.print();
 
         // 两日志JOIN拼接
         JavaPairDStream<String, Tuple2<SearchLog, ExposeLog>> joinedPairStream = searchPairStream.join(exposePairStream);
 
+        // 遍历拼接结果
+        // 发kafka消息
+        joinedPairStream.foreachRDD(rdd -> {
+            rdd.foreachPartition(it -> {
+                while (it.hasNext()) {
+                    Tuple2<String, Tuple2<SearchLog, ExposeLog>> tuple = it.next();
 
-        // map
-        JavaPairDStream<String, JoinedLog> joinStream = joinedPairStream.mapValues((tuple) -> {
-            SearchLog searchLog = tuple._1;
+                    SearchLog searchLog = tuple._2._1;
+                    ExposeLog exposeLog = tuple._2._2;
+                    ChargeLog chargeLog = new ChargeLog();
+                    chargeLog.setExposeTs(exposeLog.getTs());
+                    chargeLog.setSearchLog(searchLog);
 
-            return new JoinedLog(searchLog.getSid(), searchLog.getBid(), searchLog.getTs());
+                    kafkaSender.send(chargeLog.toString());
+                }
+            });
         });
-
-        processResult(joinStream);
 
 
         ctx.start();
@@ -137,12 +141,6 @@ public class ChargingTask {
 
         return KafkaUtils.createStream(ctx, props.getProperty("zk-list"), props.getProperty("group"), topicMap)
                 .map( tuple -> tuple._2 );
-    }
-
-    private void processResult(JavaPairDStream<String, JoinedLog> joinedStream) {
-        joinedStream.print();
-
-        kafkaSender.send("topic", "message");
     }
 
     private void initProducer() throws IOException {

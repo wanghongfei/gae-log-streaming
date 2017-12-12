@@ -2,7 +2,8 @@ package org.fh.gae.streaming.task.log;
 
 public enum LogType {
     SEARCH_LOG(0),
-    EXPOSE_LOG(1);
+    EXPOSE_LOG(1),
+    CHARGE_LOG(2);
 
     private int code;
 
@@ -17,8 +18,15 @@ public enum LogType {
 
             case 1:
                 return EXPOSE_LOG;
+
+            case 2:
+                return CHARGE_LOG;
         }
 
         return null;
+    }
+
+    public int code() {
+        return this.code;
     }
 }
