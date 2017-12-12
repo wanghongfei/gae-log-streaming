@@ -13,11 +13,7 @@ import java.util.stream.Collectors;
 public class KafkaSender {
     private Producer<String, String> producer;
 
-    public KafkaSender() {
-        Properties props = new Properties();
-        props.put("serializer.class", "kafka.serializer.StringEncoder");
-        props.put("metadata.broker.list", "10.150.182.11:8092");
-
+    public KafkaSender(Properties props) {
         ProducerConfig config = new ProducerConfig(props);
         this.producer = new Producer<String, String>(config);
 

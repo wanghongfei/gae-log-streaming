@@ -15,13 +15,22 @@ import org.fh.gae.streaming.task.log.JoinedLog;
 import org.fh.gae.streaming.task.log.SearchLog;
 import scala.Tuple2;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Properties;
 
 public class ChargingTask {
-    private KafkaSender kafkaSender = new KafkaSender();
+    private KafkaSender kafkaSender;
 
-    public void run(String appname) {
+    /**
+     * 从kafka创建两条数据流，分别接收检索日志和曝光日志，并对他们实时join，生成扣费信息再次投到kafka中
+     * @param appname
+     * @throws Exception
+     */
+    public void run(String appname) throws Exception {
+        initProducer();
+
         SparkConf conf = new SparkConf().setAppName(appname);
         JavaStreamingContext ctx = new JavaStreamingContext(conf, Durations.seconds(10));
 
@@ -107,19 +116,26 @@ public class ChargingTask {
         return ctx.socketTextStream("whf-mbp.local", 7777).window(Durations.seconds(20), Durations.seconds(10));
     }
 
-    private JavaDStream<String> createKafkaSearchStream(JavaStreamingContext ctx) {
-        Map<String, Integer> topicMap = new HashMap<>();
-        topicMap.put("dev-gae-search", 1);
+    private JavaDStream<String> createKafkaSearchStream(JavaStreamingContext ctx) throws IOException {
+        Properties props = new Properties();
+        props.load(Thread.currentThread().getContextClassLoader().getResourceAsStream("kafka-search.properties"));
 
-        return KafkaUtils.createStream(ctx, "10.115.238.30:8701", "gae-log-streaming", topicMap)
+        Map<String, Integer> topicMap = new HashMap<>();
+        topicMap.put(props.getProperty("topic"), 1);
+
+
+        return KafkaUtils.createStream(ctx, props.getProperty("zk-list"), props.getProperty("group"), topicMap)
                 .map( tuple -> tuple._2 );
     }
 
-    private JavaDStream<String> createKafkaExposeStream(JavaStreamingContext ctx) {
-        Map<String, Integer> topicMap = new HashMap<>();
-        topicMap.put("dev-gae-expose", 1);
+    private JavaDStream<String> createKafkaExposeStream(JavaStreamingContext ctx) throws IOException {
+        Properties props = new Properties();
+        props.load(Thread.currentThread().getContextClassLoader().getResourceAsStream("kafka-expose.properties"));
 
-        return KafkaUtils.createStream(ctx, "10.115.238.30:8701", "gae-log-streaming", topicMap)
+        Map<String, Integer> topicMap = new HashMap<>();
+        topicMap.put(props.getProperty("topic"), 1);
+
+        return KafkaUtils.createStream(ctx, props.getProperty("zk-list"), props.getProperty("group"), topicMap)
                 .map( tuple -> tuple._2 );
     }
 
@@ -127,5 +143,12 @@ public class ChargingTask {
         joinedStream.print();
 
         kafkaSender.send("topic", "message");
+    }
+
+    private void initProducer() throws IOException {
+        Properties props = new Properties();
+        props.load(Thread.currentThread().getContextClassLoader().getResourceAsStream("kafka-charge.properties"));
+
+        this.kafkaSender = new KafkaSender(props);
     }
 }
