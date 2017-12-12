@@ -1,4 +1,4 @@
-package org.fh.gae.streaming.task;
+package org.fh.gae.streaming.task.log;
 
 public enum LogType {
     SEARCH_LOG(0),

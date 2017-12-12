@@ -1,19 +1,19 @@
-package org.fh.gae.streaming.task;
+package org.fh.gae.streaming.task.log;
 
-public class SearchLog extends GaeLog {
+import java.io.Serializable;
+
+public class JoinedLog implements Serializable {
     private String sid;
 
     private long bid;
 
     private long ts;
 
-    public SearchLog() {
-        super(LogType.SEARCH_LOG);
+    public JoinedLog() {
+
     }
 
-    public SearchLog(String sid, long bid, long ts) {
-        this();
-
+    public JoinedLog(String sid, long bid, long ts) {
         this.sid = sid;
         this.bid = bid;
         this.ts = ts;
@@ -45,7 +45,7 @@ public class SearchLog extends GaeLog {
 
     @Override
     public String toString() {
-        final StringBuilder sb = new StringBuilder("SearchLog{");
+        final StringBuilder sb = new StringBuilder("JoinedLog{");
         sb.append("sid='").append(sid).append('\'');
         sb.append(", bid=").append(bid);
         sb.append(", ts=").append(ts);

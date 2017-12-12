@@ -1,6 +1,4 @@
-package org.fh.gae.streaming.task;
-
-import java.io.Serializable;
+package org.fh.gae.streaming.task.log;
 
 public class ExposeLog extends GaeLog {
     private long ts;

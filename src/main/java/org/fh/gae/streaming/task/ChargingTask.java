@@ -3,27 +3,35 @@ package org.fh.gae.streaming.task;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.function.Function;
+import org.apache.spark.api.java.function.VoidFunction;
 import org.apache.spark.streaming.Durations;
 import org.apache.spark.streaming.api.java.JavaDStream;
 import org.apache.spark.streaming.api.java.JavaPairDStream;
 import org.apache.spark.streaming.api.java.JavaStreamingContext;
 import org.apache.spark.streaming.kafka.KafkaUtils;
+import org.fh.gae.streaming.task.kafka.KafkaSender;
+import org.fh.gae.streaming.task.log.ExposeLog;
+import org.fh.gae.streaming.task.log.JoinedLog;
+import org.fh.gae.streaming.task.log.SearchLog;
 import scala.Tuple2;
 
 import java.util.HashMap;
 import java.util.Map;
 
 public class ChargingTask {
+    private KafkaSender kafkaSender = new KafkaSender();
+
     public void run(String appname) {
         SparkConf conf = new SparkConf().setAppName(appname);
         JavaStreamingContext ctx = new JavaStreamingContext(conf, Durations.seconds(10));
 
+
         // 检索日志流
-        JavaDStream<String> searchStream = createSearchStream(ctx);
-        // JavaDStream<String> searchStream = createKafkaSearchStream(ctx);
+        // JavaDStream<String> searchStream = createSearchStream(ctx);
+        JavaDStream<String> searchStream = createKafkaSearchStream(ctx);
         // 曝光日志流
-        JavaDStream<String> exposeStream = createExposeStream(ctx);
-        // JavaDStream<String> exposeStream = createKafkaExposeStream(ctx);
+        // JavaDStream<String> exposeStream = createExposeStream(ctx);
+        JavaDStream<String> exposeStream = createKafkaExposeStream(ctx);
 
         ctx.remember(Durations.seconds(20));
         final JavaPairRDD<String, ExposeLog>[] lastRdd = new JavaPairRDD[1];
@@ -55,6 +63,7 @@ public class ChargingTask {
                     return pairRdd;
                 });
         exposePairStream.print();
+        exposePairStream.foreachRDD((VoidFunction<JavaPairRDD<String, ExposeLog>>) rdd -> kafkaSender.send("duomo_ott_dev", "message"));
 
 
 
@@ -116,5 +125,7 @@ public class ChargingTask {
 
     private void processResult(JavaPairDStream<String, JoinedLog> joinedStream) {
         joinedStream.print();
+
+        kafkaSender.send("topic", "message");
     }
 }
