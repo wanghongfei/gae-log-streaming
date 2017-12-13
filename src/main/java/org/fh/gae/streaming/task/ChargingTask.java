@@ -85,7 +85,7 @@ public class ChargingTask {
 
         // 两日志JOIN拼接
         JavaPairDStream<String, Tuple2<SearchLog, ExposeLog>> joinedPairStream = searchPairStream.join(exposePairStream);
-        joinedPairStream.print();
+        // joinedPairStream.print();
 
         // 遍历拼接结果
         // 发kafka消息
